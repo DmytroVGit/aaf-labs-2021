@@ -54,6 +54,21 @@ class Index:
                 self.left =  self.left.delt(id, str)
         return self
 
+    def search(self, op, array, str):
+        if op == "!=":
+            self.searchNEq(array,str)
+        elif op == "=":
+            self.searchEq(array,str)
+        elif op == ">":
+            self.searchMore(array,str)
+        elif op == "<":
+            self.searchLess(array,str)
+        elif op == ">=":
+            self.searchMoreEq(array,str)
+        elif op == "<=":
+            self.searchLessEq(array,str)
+
+
     def searchNEq(self, array, str):# поиски - обычные, по дереву, сравнивается узел дерева и значение self.str *operation* str operation = =|!=|>|<|>=|<=
         if self.str < str:
             array.append(self.id)
@@ -66,7 +81,6 @@ class Index:
             if self.left is not None:
                 self.left.searchNEq(array, str)
         else:
-
             if self.right is not None:
                 self.right.searchNEq(array, str)
 
@@ -89,7 +103,6 @@ class Index:
             if self.left is not None:
                 self.left.searchMore(array, str)
         elif self.str < str:
-
             if self.right is not None:
                 self.right.searchMore(array, str)
         else:
@@ -104,7 +117,6 @@ class Index:
             if self.left is not None:
                 self.left.searchLess(array, str)
         elif self.str > str:
-
             if self.left is not None:
                 self.left.searchLess(array, str)
         else:
@@ -119,7 +131,6 @@ class Index:
             if self.left is not None:
                 self.left.searchMoreEq(array, str)
         elif self.str < str:
-
             if self.right is not None:
                 self.right.searchMoreEq(array, str)
 
@@ -132,7 +143,6 @@ class Index:
             if self.left is not None:
                 self.left.searchLessEq(array, str)
         elif self.str > str:
-
             if self.left is not None:
                 self.left.searchLessEq(array, str)
         else:

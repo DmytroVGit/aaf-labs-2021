@@ -1,178 +1,97 @@
 import re
 
-
+Create = '\s*(?i)create\s+(?P<name>\w+)\s+[(](\s*\w+\s*)((?i)indexed)?\s*([,](\s*\w+\s*)((?i)indexed)?\s*)*\s*[)]\s*$'
+Insert = '\s*(?i)insert(\s+(?i)into)?\s+(?P<name>\w+)\s+[(](\s*["]\s*[^;,]+\s*["]\s*)\s*([,](\s*["]\s*[^;,]+\s*["]\s*)\s*)*\s*[)]\s*$'
+Delete = '\s*(?i)delete\s+((?i)from\s)?\s*(?P<name>\w+)(\s+(?i)where\s+(?P<wh1>["]\s*[^;,]+\s*["]|\w+)\s*(?P<wh3>[=]|[!][=]|[>]|[<]|[>][=]|[<][=])\s*(?P<wh2>["]\s*[^;,]+\s*["]|\w+)\s*)?\s*$'
+Select1 = '\s*(?i)select\s+(?:[*]|(\w+(\s*[,]\s*\w+\s*)*))\s*$'
+Select2 = '\s*(?P<name>\w+)(\s+(?i)full_join\s+(?P<name2>\w+)\s+(?i)on\s+(?P<fj1>\w+)\s*[=]\s*(?P<fj2>\w+)\s*)?(\s+(?i)where\s+(?P<wh1>["]\s*[^;,]+\s*["]|\w+)\s*(?P<wh3>[=]|[!][=]|[>]|[<]|[>][=]|[<][=])\s*(?P<wh2>["]\s*[^;,]+\s*["]|\w+)\s*)?\s*$'
 
 
 def split_command(_string):
     result =[]
     _string = re.sub("\\s+", " ", _string)
     _string = re.sub("\\(\\s*", " (", _string)
-    _string = re.sub("\\s*\\)", ",)", _string)
+    _string = re.sub("\\s*\\)", ")", _string)
     _string = re.sub("\\s*,\\s*", ",", _string)
     _string = _string.strip() # избавляемся от лишних пробелов - пробелы больше одного, и в начале+конце команды
-    splitedCommand = _string.split(" ")
-
-    if re.match("(?i)create", splitedCommand[0]):# если криейт - начинаем парсить как для нее
-        result.append(["create", "command"])# закидываем в результат команду и подпись - что это команда
-        _string = _string.replace(splitedCommand[0] + " ", "", 1)# удаляем ненужное из строки - будет удобнее парсить дальше
-        if re.match("\w*", splitedCommand[1]):# если название таблицы из букв цифр и _ - то записываем его и после удаляем из строки
-            result.append([splitedCommand[1], "name"])
-            _string = _string.replace(splitedCommand[1] + " ", "", 1).strip()
-            if re.match("[(](?:\w+(\s+\w+)?[,])+[)]", _string):# если то, что осталось - выглядит как скобки с названиямми столбцов и возможно наличием слова индексев - идем дальше
-                _string = _string.replace("(", "")
-                _string = _string.replace(")", "")# убираем скобки
-                args = _string.split(",")# разбиваем по запятой - и разбираем названия столбцов
-                del args[-1]# удаляем последний елемент - он всегда пустой
-                for arg in args:# проходим по всем элементам если одно слово - столбец не индексированый(1), если два - второе индексед или ошибка
-                    if re.match("\s*\w+\s+(?i)indexed\s*", arg):
-                        result.append([arg.split(" ")[0], "1"])
-                    elif re.match("\s*\w+\s*", arg):
-                        result.append([arg, "0"])
-                    else :
-                        result.clear()
-                        result.append(["error", "bad col name!"])
-                        return result
+    if re.match(Create,_string):
+        m = re.match(Create,_string)
+        result.append(["create", "command"])
+        Lstr = _string.split(" ")
+        result.append([m.group("name"), "name"])
+        tmp = _string.split(m.group("name"))[0]
+        _string = _string.split(tmp+m.group("name"))[1]
+        _string = re.sub("[(]", "",_string)
+        _string = re.sub("[)]", "",_string).strip()
+        Lstr = _string.split(",")
+        #del Lstr[len(Lstr)-1]
+        for el in Lstr:
+            if len(el.split(" "))>=2:
+                result.append([el.split(" ")[0].strip(),"1"])
             else:
-                result.clear()
-                result.append(["error", "bad col names!"])
-                return result
-        else:
-            result.clear()
-            result.append(["error", "bad table name!"])
-            return result
-    elif re.match("(?i)insert", splitedCommand[0]):# аналогично с инсертом
-        result.append(["insert", "command"])
-        _string = _string.replace(splitedCommand[0], "", 1).strip()
-        if re.match("(?i)into", splitedCommand[1]):# если есть слово инту - удаляем, если нет, то и не важно
-            _string = _string.replace(splitedCommand[1], "", 1).strip()
-        splitedCommand = _string.split(" ")
-        if re.match("\w*", splitedCommand[0]): # проверяем имя на правильность
-            result.append([splitedCommand[0], "name"])
-            _string = _string.replace(splitedCommand[0], "", 1).strip()
-            if re.match('[(](?:["]\s*[^,;"]+\s*["][,])+[)]', _string):# проверяем, правильно ли введены данные
-                _string = _string.replace("(", "")
-                _string = _string.replace(")", "")
-                _string = _string.replace('"', "").strip() # удаляем лишнее и разбиваем на отдельные значения
-                args = _string.split(",")
-                del args[-1]
-                for arg in args:
-
-                    if re.match('\s*[^,;"]+\s*', arg):
-                        result.append([arg.strip(), "0"])#записываем значения
-                    else:
-                        result.clear()
-                        result.append(["error", "wrong column name!"])
-                        return result
-            else:
-                result.clear()
-                result.append(["error", "wrong column names!"])
-                return result
-        else:
-            result.clear()
-            result.append(["error", "bad table name!"])
-            return result
-    elif re.match("(?i)select", splitedCommand[0]):# аналогично предыдущим
-        result.append(["select", "command"])
-        _string = _string.replace(splitedCommand[0] + " ", "", 1).strip()
-        if re.search("\s+(?i)from\s+", _string):
-            splitSearch = re.split("\s+(?i)from\s+", _string) #проверяем наличие ключевого фром
-            if re.match("\s*[*]\s*",splitSearch[0]):# если звездочка - записываем спецсимвол как название - тогда при обработке будет ясно, что нужно взять все колонки
-                result.append(["&", "col name"])
-            elif re.match("(?:\s*\w+\s*[,])+", splitSearch[0]+","):
-                cols = splitSearch[0].split(",")
-                for col in cols:
-                   result.append([col, "col name"])# иначе записываем названия колонок
-            else:
-                result.clear()
-                result.append(["error", "wrong columns in select!"])
-                return result
-            splitedCommand = splitSearch[1].strip().split(" ")
-            if re.match("\s*\w+\s*", splitedCommand[0]):# проверяем имя таблицы
-                result.append([splitedCommand[0], "name"])
-            else:
-                result.clear()
-                result.append(["error", "wrong table name!"])
-                return result
-            if re.search("\s+(?i)full_join\s+", _string) and re.search("\s+(?i)where\s+", _string):# проверяем не идет ли джоин после вэра
-                if re.search("\s+(?i)full_join\s+", _string).start() > re.search("\s+(?i)where\s+", _string).start():
-                    result.clear()
-                    result.append(["error", "join statement after where statement!"])
-                    return result
-            if re.search("\s+(?i)full_join\s+", _string):# проверяем фул джоин на имя второй таблицы и правильного условия соединения
-                _string0 = _string.strip()
-                _string0 = re.split("\s+(?i)full_join\s+", _string0)[1].strip()
-                _string0 = re.split("(?i)where", _string0)[0].strip()
-                if re.match("\s*\w+(\s+((?i)on)\s+\w+\s+[=]\s+\w+\s*)\s*", _string0):
-                    if re.search("(?i)on", _string0):
-                        result.append([re.split("(?i)on", _string0)[0], "name2"])
-                        _string0=re.split("(?i)on", _string0)[1].strip()
-                        condition = _string0.split(" ")
-                        result.append([condition[0], "full_join"])
-                        result.append([condition[2], "full_join"])
-
-                    else:
-                        result.clear()
-                        result.append(["error", "wrong full_join statement(missed on statement)!"])
-                        return result
-                else:
-                    result.clear()
-                    result.append(["error", "wrong full_join statement!"])
-                    return result
-            if re.search("\s+(?i)where\s+", _string):# проеверяем вэр на правильность записи условий
-                _string0 = _string.strip()
-                _string0 = re.split("\s+(?i)where\s+", _string0)[1].strip()
-                if re.match('\s*[\w]+|("[^,;]+")\s+[=]|[!][=]|[>]|[<]|[>][=]|[<][=]\s+[\w+]|["[^,;]+"]\s*', _string0):
-                    condition = _string0.split(" ")
-                    if re.match('"', condition[0]):
-                        result.append([condition[0].replace('"', "").replace('"', ""), "value"])
-                    else:
-                        result.append([condition[0], "where_col"])
-                    if re.match('"', condition[2]):
-                        result.append([condition[2].replace('"', "").replace('"', ""), "value"])
-                    else:
-                        result.append([condition[2], "where_col"])
-                    result.append([condition[1], "where_operation"])
-                else:
-                    result.clear()
-                    result.append(["error", "wrong where statement!"])
-                    return result
-            else:
-                result.append(["&", "where"])
-        else:
-            result.clear()
-            result.append(["error", "wrong usage of select!"])
-            return result
-    elif re.match("(?i)delete", splitedCommand[0]):# делит - абсолютно аналогично
+                result.append([el.strip(),"0"])
+    elif re.match(Delete,_string):
+        m = re.search(Delete,_string)
         result.append(["delete", "command"])
-        _string = _string.replace(splitedCommand[0] + " ", "", 1)
-        if re.match("(?i)from", splitedCommand[1]):
-            splitedCommand = _string.split(" ")
-        if re.match("\s*\w+\s*", splitedCommand[1]):
-            result.append([splitedCommand[1], "name"])
-        else:
-            result.clear()
-            result.append(["error", "wrong table name!"])
-            return result
-        if re.search("(?i)where", _string):
-            _string0 = _string.strip()
-            _string0 = re.split("(?i)where", _string0)[1]
-            if re.match('\s*[\w+]|["\w+"]\s+[=]|[!][=]|[>]|[<]|[>][=]|[<][=]\s+[\w+]|["\w+"]\s*', _string0):
-                _string0=_string0.strip()
-                condition = _string0.split(" ")
-                if re.match('"', condition[0]):
-                    result.append([condition[0].replace('"', "").replace('"', ""), "value"])
-                else:
-                    result.append([condition[0], "where_col"])
-                if re.match('"', condition[2]):
-                    result.append([condition[2].replace('"', "").replace('"', ""), "value"])
-                else:
-                    result.append([condition[2], "where_col"])
-                result.append([condition[1], "where_operation"])
+        result.append([m.group("name"), "name"])
+        if m.group("wh1"):
+            if re.search('["]', m.group("wh1")):
+                result.append([m.group("wh1").replace('"',"").strip(), "value"])
             else:
-                result.clear()
-                result.append(["error", "wrong where statement!"])
-                return result
+                result.append([m.group("wh1").strip(), "col"])
+
+            if re.search('["]', m.group("wh2")):
+                result.append([m.group("wh2").replace('"', "").strip(), "value"])
+            else:
+                result.append([m.group("wh2").strip(), "col"])
+            result.append([m.group("wh3"),"oper"])
+    elif re.match(Insert, _string):
+        m = re.search(Insert,_string)
+        result.append(["insert", "command"])
+        result.append([m.group("name"), "name"])
+        tmp = _string.split(m.group("name"))[0]
+        _string = _string.split(tmp+m.group("name"))[1]
+        _string = re.sub("[(]", "",_string)
+        _string = re.sub("[)]", "",_string).strip()
+        _string = re.sub('["]', "",_string).strip()
+        Lstr = _string.split(",")
+        #del Lstr[len(Lstr) - 1]
+        for el in Lstr:
+            result.append([el.strip(), "0"])
+    elif re.search("\s+(?i)from\s+",_string):
+        _string1,_string2 = re.split("\s+(?i)from\s+",_string)
+        m1 = re.match(Select1, _string1)
+        m2 = re.match(Select2, _string2)
+        if m1 and m2:
+            result.append(["select","command"])
+            result.append([m2.group("name"),"name"])
+            _string1 = re.split("\s*(?i)select\s+",_string1)[1]
+            Lstr = _string1.split(",")
+            if Lstr[0].strip()=="*":
+                result.append(["&","col name"])
+            else:
+                #del Lstr[len(Lstr)-1]
+                for el in Lstr:
+                    result.append([el.strip(),"col name"])
+            if m2.group("name2"):
+                result.append([m2.group("name2"),"name2"])
+            if m2.group("fj1"):
+                result.append([m2.group("fj1"),"full_join"])
+            if m2.group("fj2"):
+                result.append([m2.group("fj2"),"full_join"])
+            if m2.group("wh1"):
+                if re.search('["]', m2.group("wh1")):
+                    result.append([m2.group("wh1").replace('"', "").strip(), "value"])
+                else:
+                    result.append([m2.group("wh1").strip(), "col"])
+
+                if re.search('["]', m2.group("wh2")):
+                    result.append([m2.group("wh2").replace('"', "").strip(), "value"])
+                else:
+                    result.append([m2.group("wh2").strip(), "col"])
+                result.append([m2.group("wh3"), "oper"])
+        else:
+            result.append(["error","wrong select!"])
     else:
-        result.clear()
-        result.append(["error", "unrecognized command!"])
+        result.append(["error","unknown command!"])
     return result

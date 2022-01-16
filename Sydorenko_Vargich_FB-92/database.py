@@ -10,19 +10,12 @@ class DataBase:
 
         self.colNumber = len(args)#количество столбцов
         self.data = []
-        i = 0
         self.colNames = []
-        self.id = 1
         for arg in args:
-            if arg[1] == "0" or arg[1] == 1:
-                self.colNames.append([arg[0].strip(), None])#не индексированый столбец
-            elif arg[1] == "1" or arg[1] == 0:
+            if arg[1] == "1" or arg[1] == 1 or (arg[1] is not None and arg[1] != "0" and arg[1] != 0):
                 self.colNames.append([arg[0].strip(), Index()])#индексированый столбец
-            elif arg[1] is not None:
-                self.colNames.append([arg[0].strip(), Index()])# индексированый столбец если копируем таблицу из уже готовой
             else:
                 self.colNames.append([arg[0].strip(), None])# неиндекс.
-            i += 1
     def ind(self, id, args):
         for i in range(0,len(self.colNames)):
             if self.colNames[i][1] is not None:
@@ -44,6 +37,19 @@ class DataBase:
             print(args,end =" ")
             print("was inserted!")
 
+    def search(self, op, value1, value2):
+        if op == "!=":
+            return value1 != value2
+        elif op == "=":
+            return value1 == value2
+        elif op == ">":
+            return value1 > value2
+        elif op == "<":
+            return value1 < value2
+        elif op == ">=":
+            return value1 >= value2
+        elif op == "<=":
+            return value1 <= value2
     def selectOneTable(self, selected_cols, where):
         print_data = []# данные для отрисовки
         headers = []# заголовок отрисовываемой таблицы
@@ -54,110 +60,69 @@ class DataBase:
         rowsToPrint = []  # строки для вывода
         if len(where) > 1: # если есть вэр то записываем левую, правую колонки(или только левую и значение)
             operator = where[2][0]
-            if where[0][1] == "value" and where[1][1] == "value":
-                c = 0
-            if where[0][1] == "value":
-                value = where[0][0]
-                leftwherecol = where[1][0]
-            elif where[1][1] == "value":
-                value = where[1][0]
-                leftwherecol = where[0][0]
-            else:
-                leftwherecol = where[0][0]
-                rightwherecol = where[1][0]
+            for el in where:
+                if el[1]=="value":
+                    value = el[0]
+                elif el[1]!="oper":
+                    if leftwherecol == "":
+                        leftwherecol = el[0]
+                    else:
+                        rightwherecol = el[0]
+            if rightwherecol == "" and leftwherecol == "":
+                rowsToPrint = self.data
+            if rightwherecol == "" and leftwherecol != "":  # если у нас только одна колонка:
+                k = 0
+                IndexCol = -1
+                indexed = 0
+                for name in self.colNames:  # находим колонку в списке имеющихся, запоминаем айди
+                    if name[0] == leftwherecol:
+                        IndexCol = k
+                        if name[1] is not None:
+                            indexed = 1
+                        break
+                    k += 1
+                if IndexCol != -1:  # если она существует
+                    if indexed == 1:  # если инексирована - выполняем поиск по индексам
+                        self.colNames[IndexCol][1].search(operator, rowsToPrint, value)
+                    else:  # если нет - просто проход по всей таблице
+                        for c in range(0,
+                                       len(self.data)):  # проходим по всем рядам таблицы, сравнивая значение столбца с заданым в вэре, если не совпадает - записываем индекс ряда на удаление
+                            if self.search(operator, self.data[c][IndexCol], value):
+                                rowsToPrint.append(self.data[c])
+
+                elif len(where) > 1:  # если колонки нет и не все колонки запрашиваються - ошибка
+                    print("Unknown column name in where statement!")
+                    return
+            else:  # если клонки две (в основном нужно для джоина)
+                IndexCol1 = -1
+                IndexCol2 = -1
+
+                k = 0
+                for name in self.colNames:
+                    if name[0] == leftwherecol:
+                        IndexCol1 = k
+
+                        break
+                    k += 1
+                k = 0
+                for name in self.colNames:
+                    if name[0] == rightwherecol:
+                        IndexCol2 = k
+
+                        break
+                    k += 1
+                if IndexCol1 != -1 and IndexCol2 != -1:  # аналогично для двух столбцов ( если оба существуют)
+                    for c in range(0,
+                                   len(self.data)):  # нет смысле смотреть на индексы, так как нам все равно нужно пройти по всем рядам, тем более, что проверяеться только совпадение в ряду - а это значит, что поиск по индексу может дать неверные и лишние результаты
+                        if self.search(operator, self.data[c][IndexCol1], self.data[c][IndexCol2]):
+                            rowsToPrint.append(self.data[c])
+                else:
+                    print(
+                        "Unknown column name in where statement!")  # если одна или обе колонки не существует в списке имен
+                    return
         else:
             rowsToPrint = self.data
 
-        if rightwherecol == "": # если у нас только одна колонка:
-            k = 0
-            IndexCol = -1
-            indexed = 0
-            for name in self.colNames:# находим колонку в списке имеющихся, запоминаем айди
-                if name[0] == leftwherecol:
-                    IndexCol = k
-                    if name[1] is not None:
-                        indexed = 1
-                    break
-                k += 1
-            if IndexCol != -1:# если она существует
-                if indexed == 1:# если инексирована - выполняем поиск по индексам
-                    if operator =="!=":
-                        self.colNames[IndexCol][1].searchNEq(rowsToPrint, value)
-                    elif operator ==">":
-                        self.colNames[IndexCol][1].searchMore(rowsToPrint, value)
-                    elif operator =="<":
-                        self.colNames[IndexCol][1].searchLess(rowsToPrint, value)
-                    elif operator ==">=":
-                        self.colNames[IndexCol][1].searchMoreEq(rowsToPrint, value)
-                    elif operator =="<=":
-                        self.colNames[IndexCol][1].searchLessEq(rowsToPrint, value)
-                    elif operator == "=":
-                        self.colNames[IndexCol][1].searchEq(rowsToPrint, value)
-                else:# если нет - просто проход по всей таблице
-                    for c in range(0, len(self.data)):  # проходим по всем рядам таблицы, сравнивая значение столбца с заданым в вэре, если не совпадает - записываем индекс ряда на удаление
-                        if operator == "=":
-                            if self.data[c][IndexCol] == value:
-                                rowsToPrint.append(self.data[c])
-                        elif operator == ">":
-                            if self.data[c][IndexCol] > value:
-                                rowsToPrint.append(self.data[c])
-                        elif operator == "<":
-                            if self.data[c][IndexCol] < value:
-                                rowsToPrint.append(self.data[c])
-                        elif operator == ">=":
-                            if self.data[c][IndexCol] >= value:
-                                rowsToPrint.append(self.data[c])
-                        elif operator == "<=":
-                            if self.data[c][IndexCol] <= value:
-                                rowsToPrint.append(self.data[c])
-                        elif operator == "!=":
-                            if self.data[c][IndexCol] != value:
-                                rowsToPrint.append(self.data[c])
-
-            elif len(where)>1:# если колонки нет и не все колонки запрашиваються - ошибка
-                print("Unknown column name in where statement!")
-                return
-        else:# если клонки две (в основном нужно для джоина)
-            IndexCol1 = -1
-            IndexCol2 = -1
-
-            k = 0
-            for name in self.colNames:
-                if name[0] == leftwherecol:
-                    IndexCol1 = k
-
-                    break
-                k += 1
-            k = 0
-            for name in self.colNames:
-                if name[0] == rightwherecol:
-                    IndexCol2 = k
-
-                    break
-                k += 1
-            if IndexCol1 != -1 and IndexCol2 != -1:# аналогично для двух столбцов ( если оба существуют)
-                for c in range(0, len(self.data)):# нет смысле смотреть на индексы, так как нам все равно нужно пройти по всем рядам, тем более, что проверяеться только совпадение в ряду - а это значит, что поиск по индексу может дать неверные и лишние результаты
-                    if operator =="=":
-                        if self.data[c][IndexCol1] != self.data[c][IndexCol2]:
-                            rowsToPrint.append(self.data[c])
-                    elif operator ==">":
-                        if self.data[c][IndexCol1] <= self.data[c][IndexCol2]:
-                            rowsToPrint.append(self.data[c])
-                    elif operator =="<":
-                        if self.data[c][IndexCol1] >= self.data[c][IndexCol2]:
-                            rowsToPrint.append(self.data[c])
-                    elif operator ==">=":
-                        if self.data[c][IndexCol1] < self.data[c][IndexCol2]:
-                            rowsToPrint.append(self.data[c])
-                    elif operator =="<=":
-                        if self.data[c][IndexCol1] > self.data[c][IndexCol2]:
-                            rowsToPrint.append(self.data[c])
-                    elif operator =="!=":
-                        if self.data[c][IndexCol1] == self.data[c][IndexCol2]:
-                            rowsToPrint.append(self.data[c])
-            else:
-                print("Unknown column name in where statement!")#если одна или обе колонки не существует в списке имен
-                return
         IndexCol = []
         if len(selected_cols) <= 1 and re.search("[&]", selected_cols[0]):# если выбранные колоник меньше одной и там не спецсимвол - выбираем все
             i = 0
@@ -178,17 +143,16 @@ class DataBase:
                 print("Unknown column name was selected!")
                 return
             print_data.append(headers)
-        temprow = [] # в этот ряд будет идти запись ряда для вывода
+         # в этот ряд будет идти запись ряда для вывода
         rowInd = 1
         for row in rowsToPrint:# проходим по всем выделенным рядам - нужно выбрать только правильные колонки
             c = 0
+            temprow = []
             for name in row:
                 if c in IndexCol:
                     temprow.append(name)
                 c += 1
-            row1 = temprow.copy()  # копируем, чтобы не очистить - ведь в питоне - указатели!
-            print_data.append(row1)
-            temprow.clear()
+            print_data.append(temprow)
             rowInd += 1
 
         self.print_pretty_table(print_data) # вызываем функцию отрисовки таблицы, найденную на просторах интернета
@@ -314,27 +278,27 @@ class DataBase:
             print(cell_sep.join(result))
 
     def delete(self, where):
-        if len(where)>1:# если условие есть - делаем проверки как в селекте
-            leftwherecol = ""
-            rightwherecol = ""
-            value = ""
-            if len(where) > 1:
-                operator = where[2][0]
-                if where[0][1] == "value":
-                    value = where[0][0]
-                    leftwherecol = where[1][0]
-                elif where[1][1] == "value":
-                    value = where[1][0]
-                    leftwherecol = where[0][0]
-                else:
-                    leftwherecol = where[0][0]
-                    rightwherecol = where[1][0]
-            rowsToPrint = []# список строк на удаление
-            if rightwherecol == "":  # если у нас только одна колонка:
+        leftwherecol = ""
+        rightwherecol = ""
+        value = ""
+        rowsToDelete =[]
+        if len(where) > 1:  # если есть вэр то записываем левую, правую колонки(или только левую и значение)
+            operator = where[2][0]
+            for el in where:
+                if el[1] == "value":
+                    value = el[0]
+                elif el[1] != "oper":
+                    if leftwherecol == "":
+                        leftwherecol = el[0]
+                    else:
+                        rightwherecol = el[0]
+            if rightwherecol == "" and leftwherecol == "":
+                rowsToDelete = self.data
+            if rightwherecol == "" and leftwherecol != "":  # если у нас только одна колонка:
                 k = 0
                 IndexCol = -1
                 indexed = 0
-                for name in self.colNames:  # находим колонку в списке имеющихся, запоминаем индекс
+                for name in self.colNames:  # находим колонку в списке имеющихся, запоминаем айди
                     if name[0] == leftwherecol:
                         IndexCol = k
                         if name[1] is not None:
@@ -342,45 +306,18 @@ class DataBase:
                         break
                     k += 1
                 if IndexCol != -1:  # если она существует
-                    if indexed == 1 :# если индексирована
-                        if operator == "!=":
-                            self.colNames[IndexCol][1].searchNEq(rowsToPrint, value)
-                        elif operator == ">":
-                            self.colNames[IndexCol][1].searchMore(rowsToPrint, value)
-                        elif operator == "<":
-                            self.colNames[IndexCol][1].searchLess(rowsToPrint, value)
-                        elif operator == ">=":
-                            self.colNames[IndexCol][1].searchMoreEq(rowsToPrint, value)
-                        elif operator == "<=":
-                            self.colNames[IndexCol][1].searchLessEq(rowsToPrint, value)
-                        elif operator == "=":
-                            self.colNames[IndexCol][1].searchEq(rowsToPrint, value)
-                    else:
+                    if indexed == 1:  # если инексирована - выполняем поиск по индексам
+                        self.colNames[IndexCol][1].search(operator, rowsToDelete, value)
+                    else:  # если нет - просто проход по всей таблице
                         for c in range(0,
                                        len(self.data)):  # проходим по всем рядам таблицы, сравнивая значение столбца с заданым в вэре, если не совпадает - записываем индекс ряда на удаление
-                            if operator == "=":
-                                if self.data[c][IndexCol] == value:
-                                    rowsToPrint.append(self.data[c])
-                            elif operator == ">":
-                                if self.data[c][IndexCol] > value:
-                                    rowsToPrint.append(self.data[c])
-                            elif operator == "<":
-                                if self.data[c][IndexCol] < value:
-                                    rowsToPrint.append(self.data[c])
-                            elif operator == ">=":
-                                if self.data[c][IndexCol] >= value:
-                                    rowsToPrint.append(self.data[c])
-                            elif operator == "<=":
-                                if self.data[c][IndexCol] <= value:
-                                    rowsToPrint.append(self.data[c])
-                            elif operator == "!=":
-                                if self.data[c][IndexCol] != value:
-                                    rowsToPrint.append(self.data[c])
+                            if self.search(operator, self.data[c][IndexCol], value):
+                                rowsToDelete.append(self.data[c])
 
-                elif len(where) > 1:
+                elif len(where) > 1:  # если колонки нет и не все колонки запрашиваються - ошибка
                     print("Unknown column name in where statement!")
                     return
-            else:
+            else:  # если клонки две (в основном нужно для джоина)
                 IndexCol1 = -1
                 IndexCol2 = -1
 
@@ -398,28 +335,13 @@ class DataBase:
 
                         break
                     k += 1
-                if IndexCol1 != -1 and IndexCol2 != -1:  # аналогично для двух столбцов, индекс не проверяем по тем же соображениям что и раньше
-                    for c in range(0, len(self.data)):
-                        if operator == "=":
-                            if self.data[c][IndexCol1] != self.data[c][IndexCol2]:
-                                rowsToPrint.append(self.data[c])
-                        elif operator == ">":
-                            if self.data[c][IndexCol1] <= self.data[c][IndexCol2]:
-                                rowsToPrint.append(self.data[c])
-                        elif operator == "<":
-                            if self.data[c][IndexCol1] >= self.data[c][IndexCol2]:
-                                rowsToPrint.append(self.data[c])
-                        elif operator == ">=":
-                            if self.data[c][IndexCol1] < self.data[c][IndexCol2]:
-                                rowsToPrint.append(self.data[c])
-                        elif operator == "<=":
-                            if self.data[c][IndexCol1] > self.data[c][IndexCol2]:
-                                rowsToPrint.append(self.data[c])
-                        elif operator == "!=":
-                            if self.data[c][IndexCol1] == self.data[c][IndexCol2]:
-                                rowsToPrint.append(self.data[c])
+                if IndexCol1 != -1 and IndexCol2 != -1:  # аналогично для двух столбцов ( если оба существуют)
+                    for c in range(0,
+                                   len(self.data)):  # нет смысле смотреть на индексы, так как нам все равно нужно пройти по всем рядам, тем более, что проверяеться только совпадение в ряду - а это значит, что поиск по индексу может дать неверные и лишние результаты
+                        if self.search(operator, self.data[c][IndexCol1], self.data[c][IndexCol2]):
+                            rowsToDelete.append(self.data[c])
                 else:
-                    print("Unknown column name in where statement!")
+                    print("Unknown column name in where statement!")  # если одна или обе колонки не существует в списке имен
                     return
             ind = []
             i = 0
@@ -427,18 +349,20 @@ class DataBase:
                 if el[1] is not None:
                     ind.append(i)
 
-                i+=1
-            if len(ind)>0:
-                for rw in rowsToPrint:
+                i += 1
+            if len(ind) > 0:
+                for rw in rowsToDelete:
                     for el in ind:
-                        self.colNames[el][1]=self.colNames[el][1].delt(rw,rw[el])# удаляем все индексы связанные с каждым рядом
-                    self.data.remove(rw)# удаляем сам ряд( по ссылке в питоне нельзя удалить обьект, только изменить)
+                        self.colNames[el][1] = self.colNames[el][1].delt(rw, rw[el])  # удаляем все индексы связанные с каждым рядом
+                    self.data.remove(rw)  # удаляем сам ряд( по ссылке в питоне нельзя удалить обьект, только изменить)
 
-
-            print(len(rowsToPrint),end="")
-            print(" rows were deleted from table ",end="")
-        else:# иначе удаляем все
+            print(len(rowsToDelete), end="")
+            print(" rows were deleted from table ", end="")
+        else:
             self.data.clear()
             for cln in self.colNames:
-                cln[1]= Index()# чистим индексы
+                cln[1] = Index()  # чистим индексы
             print("All data was deleted!")
+
+
+
